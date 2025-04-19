@@ -5,7 +5,8 @@ from transformers import pipeline
 import pandas as pd
 
 # # Load dataset
-dataset = load_dataset("./earnings_call")
+
+dataset = load_dataset("lamini/earnings-calls-qa")
 
 transcripts_df = dataset['train'].to_pandas()
 # print(transcripts_df)
