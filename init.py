@@ -1,13 +1,5 @@
 
 
-git remote set-url origin https://vibhav2601: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@huggingface.co/jlh-ibm/earnings_call
-$: git pull origin
-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
-GIT_LFS_SKIP_SMUDGE=1 git clone https://vibhav2601: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@huggingface.co/datasets/jlh-ibm/earnings_call
-
-git filter-repo --replace-text <(echo "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==REMOVED_TOKEN")
-
-
 from datasets import load_dataset
 from transformers import pipeline
 import pandas as pd
