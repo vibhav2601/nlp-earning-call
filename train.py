@@ -15,11 +15,22 @@ def load_data(jsonl_path):
         for obj in reader:
             ticker = obj.get("ticker", "")
             date = obj.get("date", "")
-            transcript = obj.get("transcript", "")
 
-            cleaned = date.replace("p.m.", "PM").replace("a.m.", "AM").replace("ET", "").strip()
-            dt = datetime.strptime(cleaned, "%b %d, %Y, %I:%M %p")
-            prices_compiled = get_stock_prices(ticker, dt)
+            if isinstance(date, list):
+              date = date[-1]
+            date = date.replace(',', '')
+            date = date.replace('.', '')
+            date = date.replace('April', 'Apr')
+            date = date.replace('March', 'Mar')
+            transcript = obj.get("transcript", "")
+            try:
+              cleaned = date.replace("p.m.", "PM").replace("a.m.", "AM").replace("ET", "").strip()
+              dt = datetime.strptime(cleaned, "%b %d %Y %I:%M %p")
+              prices_compiled = get_stock_prices(ticker, dt)
+            except:
+              continue
+            if prices_compiled is None:
+              continue
             change = (prices_compiled[-1][1] - prices_compiled[0][1])/(prices_compiled[0][1])
 
             if change > 0.025:
@@ -82,7 +93,7 @@ def train_model(model, train_data, val_data, batch_size=1, num_epochs=5, learnin
     return model
 
 if __name__ == "__main__":
-    data = load_data("data/earnings_transcript_short.jsonl")
+    data = load_data("data/earning_call.jsonl")
     np.random.shuffle(data)
     split_idx = int(0.8 * len(data))
     train_data = data[:split_idx]
