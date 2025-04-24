@@ -29,7 +29,13 @@ python generate_gold_labels.py
 python train.py
 ```
 
+## ✅Accuracy
+![image](https://github.com/user-attachments/assets/8eefd1f2-02fe-46f7-9341-99487ba35f4e)
+
+
 # 📚 Citation
 We used ProsusAI/FinBERT and custom cleaned transcripts from the lamini earnings-calls-qa dataset (transcripts only).
+
+
 
 
