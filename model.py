@@ -1,52 +1,96 @@
 import torch
 import torch.nn as nn
+import torch.optim as optim
+import numpy as np
+from tqdm import tqdm
+from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
 from transformers import AutoModel, AutoTokenizer
+from dataset_utils import load_gold_and_weak_data
+from focal_loss import FocalLoss
 
-class HierarchicalFinBERTModel(nn.Module):
-    def __init__(self, model_name='yiyanghkust/finbert-tone', num_layers=3, num_heads=6, device=None):
+class FinBERTToneEmbeddingClassifier(nn.Module):
+    def __init__(self, model_name='ProsusAI/finbert'):
         super().__init__()
-        self.device = device or torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.bert = AutoModel.from_pretrained(model_name)
         self.tokenizer = AutoTokenizer.from_pretrained(model_name)
-        self.segment_encoder = AutoModel.from_pretrained(model_name).to(self.device)
-        self.hidden_size = self.segment_encoder.config.hidden_size
-
-        self.doc_encoder = nn.TransformerEncoder(
-            nn.TransformerEncoderLayer(d_model=self.hidden_size, nhead=num_heads),
-            num_layers=num_layers
-        ).to(self.device)
-
-        self.attn_pool = nn.Sequential(
-            nn.Linear(self.hidden_size, 1),
-            nn.Softmax(dim=0)
-        )
-        self.norm = nn.LayerNorm(self.hidden_size * 2)
         self.dropout = nn.Dropout(0.3)
-        self.classifier = nn.Linear(self.hidden_size * 2, 2).to(self.device)
+        self.classifier = nn.Linear(self.bert.config.hidden_size, 1)
 
-    def chunk_and_embed(self, transcript, max_chunks=150):
-        tokens = self.tokenizer(transcript, return_tensors="pt", truncation=False, padding=False, add_special_tokens=False)
-        input_ids = tokens["input_ids"][0]
-        chunk_size = 510
-        cls_embeddings = []
+    def forward(self, text_batch):
+        device = self.classifier.weight.device
+        inputs = self.tokenizer(text_batch, return_tensors="pt", padding=True, truncation=True, max_length=512).to(device)
+        outputs = self.bert(**inputs)
+        cls_embedding = outputs.last_hidden_state[:, 0, :]  # CLS token
+        x = self.dropout(cls_embedding)
+        return self.classifier(x).squeeze(-1)
 
-        for i in range(0, len(input_ids), chunk_size):
-            if len(cls_embeddings) >= max_chunks:
-                break
-            chunk_ids = input_ids[i:i + chunk_size]
-            chunk_text = self.tokenizer.decode(chunk_ids)
-            chunk = self.tokenizer(chunk_text, return_tensors="pt", padding="max_length", truncation=True, max_length=512)
-            chunk = {k: v.to(self.device) for k, v in chunk.items()}
-            output = self.segment_encoder(**chunk)
-            cls_emb = output.last_hidden_state[:, 0, :]
-            cls_embeddings.append(cls_emb.squeeze(0))
+def train_model(model, train_data, val_data, batch_size=4, num_epochs=5, learning_rate=3e-5):
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    model = model.to(device)
+    criterion = FocalLoss(gamma=2.0)
+    optimizer = optim.AdamW(model.parameters(), lr=learning_rate)
 
-        return torch.stack(cls_embeddings).to(self.device)
+    for epoch in range(num_epochs):
+        model.train()
+        total_loss = 0
 
-    def forward(self, transcript):
-        segment_embeddings = self.chunk_and_embed(transcript)
-        encoded = self.doc_encoder(segment_embeddings.unsqueeze(1)).squeeze(1)
-        attn_weights = self.attn_pool(encoded)
-        attn_vector = torch.sum(attn_weights * encoded, dim=0)
-        doc_vector = torch.cat([encoded[0], attn_vector], dim=-1)
-        doc_vector = self.dropout(self.norm(doc_vector))
-        return self.classifier(doc_vector)
+        for i in tqdm(range(0, len(train_data), batch_size), desc=f"Epoch {epoch+1}"):
+            batch = train_data[i:i + batch_size]
+            texts = [item['transcript'] for item in batch if item.get('label') is not None]
+            labels = [item['label'] for item in batch if item.get('label') is not None]
+
+            if not texts:
+                continue
+
+            targets = torch.tensor(labels, dtype=torch.float).to(device)
+            optimizer.zero_grad()
+            outputs = model(texts)
+            loss = criterion(outputs, targets)
+            loss.backward()
+            total_loss += loss.item()
+            optimizer.step()
+
+        print(f"Epoch {epoch + 1}/{num_epochs}, Loss: {total_loss / len(train_data):.4f}")
+
+        model.eval()
+        all_preds = []
+        all_labels = []
+        with torch.no_grad():
+          for item in val_data:
+              if item.get('label') is None:
+                  continue
+              text = item['transcript']
+              label = item['label']
+              output = model([text])
+              prob = torch.sigmoid(output).item()
+              pred = int(prob > 0.5)
+
+              # ✅ Print predicted vs true label
+              print(f"Pred: {pred} | Prob: {prob:.4f} | True: {label}")
+
+              all_preds.append(pred)
+              all_labels.append(label)
+
+
+        accuracy = accuracy_score(all_labels, all_preds)
+        precision = precision_score(all_labels, all_preds)
+        recall = recall_score(all_labels, all_preds)
+        f1 = f1_score(all_labels, all_preds)
+        print(f"Validation Metrics: Acc={accuracy:.4f}, Precision={precision:.4f}, Recall={recall:.4f}, F1={f1:.4f}")
+
+    return model
+
+if __name__ == "__main__":
+    print("Loading data...")
+    data = load_gold_and_weak_data("data/labeled_earning_call.jsonl", "data/weak_labeled_10k.tsv")
+    print(f"Loaded {len(data)} total samples")
+
+    np.random.shuffle(data)
+    split_idx = int(0.8 * len(data))
+    train_data = data[:split_idx]
+    val_data = data[split_idx:]
+
+    model = FinBERTToneEmbeddingClassifier()
+    trained_model = train_model(model, train_data, val_data, batch_size=4, num_epochs=5, learning_rate=3e-5)
+
+    torch.save(trained_model.state_dict(), "binary_fingertone_embedding_model.pth")
