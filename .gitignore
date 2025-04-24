@@ -1,2 +1,5 @@
 /__pycache__
+/.venv
+.venvgit rm --cached --ignore-unmatch earnings_call_model.pth
+git rm --cached --ignore-unmatch earnings_call_model_37.pth
 data/earning_transcript_single.jsonl

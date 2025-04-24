@@ -14,6 +14,9 @@ def get_stock_prices(ticker, dt):
     data = stock.history(start=first_day.strftime("%Y-%m-%d"), end=second_day.strftime("%Y-%m-%d"))
 
     close_prices = data['Close'].tolist()
+    if len(data) == 0:
+      print('skipping stock')
+      return None
     dates = data.index.strftime('%Y-%m-%d').tolist()
 
     return list(zip(dates, close_prices))
