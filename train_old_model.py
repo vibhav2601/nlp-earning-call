@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from model import HierarchicalFinBERTModel
+from FinBERTToneEmbeddingClassifier import HierarchicalFinBERTModel
 import jsonlines
 from datetime import datetime
 from stock_price import get_stock_prices

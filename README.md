@@ -19,14 +19,14 @@ This repository implements a binary classification model using **FinBERT** to an
 ## ⚙️ Setup & Requirements
 
 ```bash
-pip install req2.txt
+pip install requirements.txt
 pip install jsonlines
 
 ```
 ## 🏃‍♂️ How to Run
 ```bash
 python generate_gold_labels.py
-python train.py
+python FinBERTToneEmbeddingClassifier.py
 ```
 
 ## ✅Accuracy

@@ -25,7 +25,7 @@ multitasking==0.0.11
 networkx==3.2.1
 numpy==1.26.4
 packaging==24.2
-pandas==2.2.3
+pandas==2.2.2  # Downgraded for Colab compatibility
 peewee==3.17.9
 platformdirs==4.3.7
 propcache==0.3.1
@@ -38,11 +38,13 @@ requests==2.32.3
 safetensors==0.5.3
 six==1.17.0
 soupsieve==2.6
-sympy==1.13.3
+sympy==1.13.1  # Downgraded for compatibility with torch
 tokenizers==0.21.1
-torch==2.2.2
+torch==2.6.0+cu118  # GPU compatible for Colab (cu118 build)
+torchaudio==2.6.0+cu118
+torchvision==0.21.0+cu118
 tqdm==4.67.1
-transformers==4.51.3
+transformers==4.38.2
 typing_extensions==4.13.2
 tzdata==2025.2
 urllib3==2.4.0
