@@ -1,4 +1,3 @@
-# train.py
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -15,41 +14,29 @@ def load_data(jsonl_path):
         for obj in reader:
             ticker = obj.get("ticker", "")
             date = obj.get("date", "")
+            transcript = obj.get("transcript", "")
 
             if isinstance(date, list):
-              date = date[-1]
-            date = date.replace(',', '')
-            date = date.replace('.', '')
-            date = date.replace('April', 'Apr')
-            date = date.replace('March', 'Mar')
-            transcript = obj.get("transcript", "")
+                date = date[-1]
             try:
-              cleaned = date.replace("p.m.", "PM").replace("a.m.", "AM").replace("ET", "").strip()
-              dt = datetime.strptime(cleaned, "%b %d %Y %I:%M %p")
-              prices_compiled = get_stock_prices(ticker, dt)
+                cleaned = date.replace(",", "").replace(".", "").replace("ET", "").strip()
+                cleaned = cleaned.replace("p.m.", "PM").replace("a.m.", "AM")
+                cleaned = cleaned.replace("April", "Apr").replace("March", "Mar")
+                dt = datetime.strptime(cleaned, "%b %d %Y %I:%M %p")
+                prices_compiled = get_stock_prices(ticker, dt)
+                if prices_compiled is None:
+                    continue
             except:
-              continue
-            if prices_compiled is None:
-              continue
-            change = (prices_compiled[-1][1] - prices_compiled[0][1])/(prices_compiled[0][1])
+                continue
 
-            if change > 0.025:
-                label = 2  # positive
-            elif change < -0.025:
-                label = 0  # negative
-            else:
-                label = 1  # neutral
+            change = (prices_compiled[-1][1] - prices_compiled[0][1]) / prices_compiled[0][1]
+            label = 1 if change < 0 else 0  # 1 = down, 0 = up
 
-            data.append({
-                'transcript': transcript,
-                'label': label
-            })
+            data.append({'transcript': transcript, 'label': label})
     return data
 
-def train_model(model, train_data, val_data, batch_size=1, num_epochs=5, learning_rate=1e-5):
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+def train_model(model, train_data, val_data, device, batch_size=1, num_epochs=5, learning_rate=3e-5):
     model = model.to(device)
-
     criterion = nn.CrossEntropyLoss()
     optimizer = optim.AdamW(model.parameters(), lr=learning_rate)
 
@@ -64,7 +51,7 @@ def train_model(model, train_data, val_data, batch_size=1, num_epochs=5, learnin
             for item in batch_data:
                 transcript = item['transcript']
                 label = torch.tensor([item['label']], dtype=torch.long).to(device)
-                output = model(transcript).unsqueeze(0)  # logits
+                output = model(transcript).unsqueeze(0)
                 loss = criterion(output, label)
                 loss.backward()
                 total_loss += loss.item()
@@ -76,38 +63,40 @@ def train_model(model, train_data, val_data, batch_size=1, num_epochs=5, learnin
 
         # Validation
         model.eval()
-        correct = 0
-        total = 0
+        correct, total = 0, 0
+        pred_counts = [0, 0]
+        actual_counts = [0, 0]
+
         with torch.no_grad():
             for item in val_data:
                 transcript = item['transcript']
                 label = item['label']
                 logits = model(transcript)
                 pred_class = torch.argmax(logits).item()
+
+                pred_counts[pred_class] += 1
+                actual_counts[label] += 1
                 correct += (pred_class == label)
                 total += 1
 
         accuracy = correct / total
         print(f"Validation Accuracy: {accuracy:.4f}")
+        print("Prediction Counts: [Up, Down] =", pred_counts)
+        print("Actual Label Counts:   [Up, Down] =", actual_counts)
 
     return model
 
-if __name__ == "__main__":
+if _name_ == "_main_":
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    print("Using device:", device)
+
     data = load_data("data/earning_call.jsonl")
     np.random.shuffle(data)
     split_idx = int(0.8 * len(data))
     train_data = data[:split_idx]
     val_data = data[split_idx:]
 
-    model = HierarchicalFinBERTModel()
-
-    trained_model = train_model(
-        model,
-        train_data,
-        val_data,
-        batch_size=1,
-        num_epochs=5,
-        learning_rate=1e-5
-    )
+    model = HierarchicalFinBERTModel(device=device)
+    trained_model = train_model(model, train_data, val_data, device)
 
     torch.save(trained_model.state_dict(), 'earnings_call_model.pth')
