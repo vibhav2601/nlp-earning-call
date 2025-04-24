@@ -44,7 +44,7 @@ torch==2.6.0+cu118  # GPU compatible for Colab (cu118 build)
 torchaudio==2.6.0+cu118
 torchvision==0.21.0+cu118
 tqdm==4.67.1
-transformers==4.51.3
+transformers==4.38.2
 typing_extensions==4.13.2
 tzdata==2025.2
 urllib3==2.4.0
