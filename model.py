@@ -3,8 +3,8 @@ import torch.nn as nn
 from transformers import AutoModel, AutoTokenizer
 
 class HierarchicalFinBERTModel(nn.Module):
-    def _init_(self, model_name='yiyanghkust/finbert-tone', num_layers=3, num_heads=6, device=None):
-        super()._init_()
+    def __init__(self, model_name='yiyanghkust/finbert-tone', num_layers=3, num_heads=6, device=None):
+        super().__init__()
         self.device = device or torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.tokenizer = AutoTokenizer.from_pretrained(model_name)
         self.segment_encoder = AutoModel.from_pretrained(model_name).to(self.device)
