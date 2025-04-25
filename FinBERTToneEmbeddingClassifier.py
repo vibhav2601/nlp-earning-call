@@ -65,7 +65,6 @@ def train_model(model, train_data, val_data, batch_size=4, num_epochs=5, learnin
               prob = torch.sigmoid(output).item()
               pred = int(prob > 0.5)
 
-              # ✅ Print predicted vs true label
               print(f"Pred: {pred} | Prob: {prob:.4f} | True: {label}")
 
               all_preds.append(pred)
